@@ -1,0 +1,38 @@
+{
+  "name": "signal-knectiq-integration",
+  "version": "1.0.0",
+  "description": "Signal + KnectIQ SelectiveTRUST® Integration - Ephemeral trust environment for secure messaging",
+  "main": "src/integration/SignalKnectIQIntegration.ts",
+  "scripts": {
+    "example:basic": "ts-node examples/basic-usage.ts",
+    "example:advanced": "ts-node examples/advanced-usage.ts",
+    "build": "tsc",
+    "test": "echo 'Tests would go here'",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "signal",
+    "knectiq",
+    "selectivetrust",
+    "ephemeral-keys",
+    "end-to-end-encryption",
+    "trust-enclave",
+    "secure-messaging",
+    "cryptography",
+    "zero-trust",
+    "sovereign-trust"
+  ],
+  "author": "Signal + KnectIQ Integration Team",
+  "license": "SEE LICENSE IN README",
+  "dependencies": {
+    "crypto": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
