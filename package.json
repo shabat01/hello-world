@@ -6,6 +6,7 @@
   "scripts": {
     "example:basic": "ts-node examples/basic-usage.ts",
     "example:advanced": "ts-node examples/advanced-usage.ts",
+    "demo:ios": "ts-node run-ios-app-demo.ts",
     "build": "tsc",
     "test": "echo 'Tests would go here'",
     "clean": "rm -rf dist"
