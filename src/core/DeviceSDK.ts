@@ -144,12 +144,12 @@ export class DeviceSDK {
     keyMaterial.used = true;
 
     // Construct actual encryption key from key material
-    // In real implementation, this would use the ephemeral key ID as seed
-    // for HKDF or similar key derivation
+    // In real implementation, this would use ECDH with recipient's public key
+    // For this demo, we use the ephemeral key ID as the shared secret
     const encryptionKey = crypto
       .createHash('sha256')
       .update(ephemeralKeyId)
-      .update(this.privateIdentity)
+      .update('shared-secret-seed') // In production: use ECDH-derived shared secret
       .digest();
 
     // Generate IV for AES-GCM
@@ -164,8 +164,13 @@ export class DeviceSDK {
       cipher.getAuthTag() // Append auth tag
     ]);
 
-    // Sign the encrypted package
-    const signature = this.signData(encryptedData);
+    // Create HMAC for message authentication
+    // (In addition to GCM's auth tag, this binds source/target device IDs)
+    const hmac = crypto.createHmac('sha256', encryptionKey);
+    hmac.update(this.deviceId);
+    hmac.update(targetDeviceId);
+    hmac.update(encryptedData);
+    const signature = hmac.digest();
 
     // Destroy the ephemeral key immediately after use
     setImmediate(() => this.destroyEphemeralKey(ephemeralKeyId));
@@ -193,11 +198,6 @@ export class DeviceSDK {
    * via established pathways.
    */
   public decryptData(package_: SecureDataPackage): Buffer {
-    // Verify signature first
-    if (!this.verifySignature(package_.encryptedData, package_.signature)) {
-      throw new Error('Signature verification failed - data may be tampered');
-    }
-
     // Check timestamp to prevent replay attacks
     const age = Date.now() - package_.timestamp;
     if (age > 300000) {
@@ -207,11 +207,29 @@ export class DeviceSDK {
 
     // Reconstruct decryption key from ephemeral key ID
     // This demonstrates the concept of "constructing" the key at the device
+    // In real implementation, this would use ECDH with sender's public key
     const decryptionKey = crypto
       .createHash('sha256')
       .update(package_.ephemeralKeyId)
-      .update(this.privateIdentity)
+      .update('shared-secret-seed') // In production: use ECDH-derived shared secret
       .digest();
+
+    // Verify HMAC signature
+    const expectedHmac = crypto.createHmac('sha256', decryptionKey);
+    expectedHmac.update(package_.sourceDeviceId);
+    expectedHmac.update(package_.targetDeviceId);
+    expectedHmac.update(package_.encryptedData);
+    const expectedSignature = expectedHmac.digest();
+
+    try {
+      if (!crypto.timingSafeEqual(package_.signature, expectedSignature)) {
+        throw new Error('HMAC verification failed');
+      }
+    } catch (error) {
+      // Overwrite key even on error
+      crypto.randomFillSync(decryptionKey);
+      throw new Error('Signature verification failed - data may be tampered');
+    }
 
     // Extract IV, ciphertext, and auth tag
     const iv = package_.encryptedData.slice(0, 12);

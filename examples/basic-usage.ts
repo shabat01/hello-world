@@ -59,8 +59,8 @@ async function basicExample() {
   console.log('3. Establishing trust relationships...');
   console.log('   (Trust managed by DASB, not data pathways)');
 
-  await aliceIntegration.addTrustedContact(bobDevice);
-  await bobIntegration.addTrustedContact(aliceDevice);
+  aliceIntegration.addTrustedContact(bobDevice);
+  bobIntegration.addTrustedContact(aliceDevice);
 
   console.log('   ✓ Trust relationship established');
   console.log('   ✓ Both devices provisioned in Trust Environment');

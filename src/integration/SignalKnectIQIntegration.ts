@@ -91,7 +91,7 @@ export class SignalKnectIQIntegration {
   /**
    * Provision the local Signal device
    */
-  private async provisionLocalDevice(device: SignalDevice): Promise<void> {
+  private provisionLocalDevice(device: SignalDevice): void {
     const provisionRequest: DeviceProvisionRequest = {
       deviceId: device.deviceId,
       deviceType: device.deviceType,
@@ -99,7 +99,7 @@ export class SignalKnectIQIntegration {
       capabilities: ['encrypt', 'decrypt', 'sign', 'verify', ...device.capabilities]
     };
 
-    this.localDeviceSDK = await this.dasb.provisionDevice(provisionRequest);
+    this.localDeviceSDK = this.dasb.provisionDevice(provisionRequest);
   }
 
   /**
@@ -107,9 +107,9 @@ export class SignalKnectIQIntegration {
    *
    * Provisions the remote device and establishes trust relationship
    */
-  public async addTrustedContact(
+  public addTrustedContact(
     contactDevice: SignalDevice
-  ): Promise<void> {
+  ): void {
     if (!this.localDeviceSDK) {
       throw new Error('Local device not provisioned');
     }
@@ -122,10 +122,10 @@ export class SignalKnectIQIntegration {
       capabilities: ['encrypt', 'decrypt', 'sign', 'verify', ...contactDevice.capabilities]
     };
 
-    const remoteSDK = await this.dasb.provisionDevice(provisionRequest);
+    const remoteSDK = this.dasb.provisionDevice(provisionRequest);
 
     // Establish trust relationship via DASB
-    await this.dasb.establishTrustRelationship(
+    this.dasb.establishTrustRelationship(
       this.localDeviceId,
       contactDevice.deviceId,
       this.trustEnvironmentId
@@ -252,7 +252,7 @@ export class SignalKnectIQIntegration {
    *
    * Revokes trust relationship and deprovisions device
    */
-  public async removeTrustedContact(contactDeviceId: string): Promise<void> {
+  public removeTrustedContact(contactDeviceId: string): void {
     // Find and revoke trust relationship
     const trustEnv = this.dasb.getTrustEnvironment(this.trustEnvironmentId);
     if (trustEnv) {
@@ -268,7 +268,7 @@ export class SignalKnectIQIntegration {
     this.remoteDevices.delete(contactDeviceId);
 
     // Deprovision device
-    await this.dasb.deprovisionDevice(contactDeviceId);
+    this.dasb.deprovisionDevice(contactDeviceId);
   }
 
   /**

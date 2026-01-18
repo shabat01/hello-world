@@ -94,7 +94,7 @@ export class DeviceAccessServiceBroker {
    * Once provisioned, the device uses the KnectIQ SDK to participate
    * in the trust environment.
    */
-  public async provisionDevice(request: DeviceProvisionRequest): Promise<DeviceSDK> {
+  public provisionDevice(request: DeviceProvisionRequest): DeviceSDK {
     const trustEnv = this.trustEnvironments.get(request.trustEnvironmentId);
 
     if (!trustEnv) {
@@ -114,7 +114,7 @@ export class DeviceAccessServiceBroker {
     );
 
     // Register device with trust environment
-    await trustEnv.registerDevice(request.deviceId, deviceSDK.getPublicIdentity());
+    trustEnv.registerDevice(request.deviceId, deviceSDK.getPublicIdentity());
 
     // Store provisioned device
     this.provisionedDevices.set(request.deviceId, deviceSDK);
@@ -134,11 +134,11 @@ export class DeviceAccessServiceBroker {
    * The DASB manages the relationship metadata, while actual
    * encryption keys are constructed at the devices.
    */
-  public async establishTrustRelationship(
+  public establishTrustRelationship(
     deviceIdA: string,
     deviceIdB: string,
     trustEnvironmentId: string
-  ): Promise<TrustRelationship> {
+  ): TrustRelationship {
     const trustEnv = this.trustEnvironments.get(trustEnvironmentId);
 
     if (!trustEnv) {
@@ -172,7 +172,7 @@ export class DeviceAccessServiceBroker {
     this.trustRelationships.set(relationshipId, relationship);
 
     // Notify trust environment
-    await trustEnv.establishRelationship(deviceIdA, deviceIdB, relationshipId);
+    trustEnv.establishRelationship(deviceIdA, deviceIdB, relationshipId);
 
     this.logAudit('trust_relationship_established', {
       relationshipId,
@@ -244,7 +244,7 @@ export class DeviceAccessServiceBroker {
    *
    * Removes device from trust environment and revokes all relationships
    */
-  public async deprovisionDevice(deviceId: string): Promise<void> {
+  public deprovisionDevice(deviceId: string): void {
     const device = this.provisionedDevices.get(deviceId);
 
     if (!device) {

@@ -66,11 +66,11 @@ export class TrustEnvironment {
   /**
    * Register a device in this trust environment
    */
-  public async registerDevice(
+  public registerDevice(
     deviceId: string,
     publicIdentity: Buffer,
     capabilities: string[] = []
-  ): Promise<void> {
+  ): void {
     if (this.devices.size >= this.config.maxDevices) {
       throw new Error('Trust environment has reached maximum device capacity');
     }
@@ -122,11 +122,11 @@ export class TrustEnvironment {
   /**
    * Establish a relationship between two devices
    */
-  public async establishRelationship(
+  public establishRelationship(
     deviceIdA: string,
     deviceIdB: string,
     relationshipId: string
-  ): Promise<void> {
+  ): void {
     if (!this.devices.has(deviceIdA) || !this.devices.has(deviceIdB)) {
       throw new Error('Both devices must be registered in this environment');
     }

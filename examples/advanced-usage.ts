@@ -62,10 +62,10 @@ async function advancedExample() {
 
   // Establish multi-party trust network
   console.log('2. Establishing multi-party trust network...');
-  await aliceIntegration.addTrustedContact(bobDevice);
-  await aliceIntegration.addTrustedContact(charlieDevice);
-  await bobIntegration.addTrustedContact(aliceDevice);
-  await charlieIntegration.addTrustedContact(aliceDevice);
+  aliceIntegration.addTrustedContact(bobDevice);
+  aliceIntegration.addTrustedContact(charlieDevice);
+  bobIntegration.addTrustedContact(aliceDevice);
+  charlieIntegration.addTrustedContact(aliceDevice);
 
   console.log('   ✓ Alice ↔ Bob trust established');
   console.log('   ✓ Alice ↔ Charlie trust established');
@@ -108,7 +108,7 @@ async function advancedExample() {
 
   // Demonstrate trust revocation
   console.log('6. Revoking trust for Charlie...');
-  await aliceIntegration.removeTrustedContact(charlieDevice.deviceId);
+  aliceIntegration.removeTrustedContact(charlieDevice.deviceId);
 
   console.log('   ✓ Trust relationship terminated');
   console.log('   ✓ Charlie removed from Trust Environment');
