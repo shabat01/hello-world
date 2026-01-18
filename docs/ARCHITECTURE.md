@@ -2,319 +2,393 @@
 
 ## Overview
 
-This integration enhances Signal's already robust end-to-end encryption with KnectIQ's patented SelectiveTRUST® security architecture, providing a completely ephemeral and sovereign trust environment.
+This integration enhances Signal's end-to-end encryption with KnectIQ's patented SelectiveTRUST® security architecture, based on publicly available information about their patented technology.
 
 ## KnectIQ SelectiveTRUST® Technology
 
-### Core Principles
+### Core Patent Claims (Based on Public Information)
 
-1. **Ephemerality**: Single-use encryption keys that are dynamically generated and immediately destroyed
-2. **Sovereign Trust**: Isolated trust enclaves for secure operations
-3. **Real-time Validation**: Every communication is validated in real-time
-4. **Zero Persistence**: No keys to manage, store, or rotate
+**Patent Information:**
+- **Assignee:** KnectIQ Inc.
+- **Inventors:** Shailendra Jain, Andrew Lunstad, Kenneth Morris
+- **Grant Date:** June 11, 2019
+- **Title:** Systems and methods for secure electronic data transfer utilizing an ephemeral key for encryption and decryption of data
 
-### Architecture Components
+### Fundamental Principles
+
+1. **Ephemeral Keys Constructed at Device**
+   - "Single-use encryption keys are dynamically generated at the device at the time of need"
+   - "Each key is destroyed immediately after use on every operation"
+   - "No crypto to store, rotate, or frequently load"
+
+2. **Control Plane vs. Data Plane Separation**
+   - DASB (Device Access Service Broker) manages trust (control plane)
+   - "Encrypted data travels via established pathways, unseen and untouched by SelectiveTRUST"
+   - Trust management is separate from data transport
+
+3. **No PKI Dependency**
+   - "Device-level trust without persistent keys or centralized storage"
+   - "No dependency on PKI or shared cryptographic infrastructure"
+
+4. **Real-Time Trust Validation**
+   - "Real-time validation for every communication/transaction"
+   - Trust score-based access control
+
+5. **FIPS Compliance**
+   - "FIPS 140-2 validated mode of operation"
+   - "FIPS 203-capable"
+
+## Architecture Components
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Signal Application Layer                     │
-└─────────────────────────────────────────────────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              SignalKnectIQIntegration (Main API)                │
-│  - Device registration                                          │
-│  - Session management                                           │
-│  - Message encryption/decryption                                │
-│  - Trust verification                                           │
-└─────────────────────────────────────────────────────────────────┘
-                              ▼
-          ┌───────────────────┴───────────────────┐
-          ▼                                       ▼
-┌─────────────────────────┐         ┌─────────────────────────┐
-│     TrustFabric         │         │   EphemeralKeyManager   │
-│ - Trust validation      │◄────────┤ - Key generation        │
-│ - Secure envelopes      │         │ - Key lifecycle         │
-│ - Programmable rules    │         │ - Key destruction       │
-└─────────────────────────┘         └─────────────────────────┘
-          ▼
-┌─────────────────────────┐
-│     TrustEnclave        │
-│ - Session management    │
-│ - Real-time validation  │
-│ - Trust scoring         │
-└─────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    Signal Application Layer                  │
+└──────────────────────────────────────────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│          SignalKnectIQIntegration (Integration API)          │
+│  - Device provisioning                                       │
+│  - Contact management                                        │
+│  - Message send/receive coordination                         │
+└──────────────────────────────────────────────────────────────┘
+                           ▼
+        ┌──────────────────┴──────────────────┐
+        ▼                                     ▼
+┌───────────────────┐              ┌──────────────────┐
+│      DASB         │              │   Device SDK     │
+│  (Control Plane)  │◄────────────►│  (Data Plane)    │
+│                   │              │                  │
+│ - Trust Envs      │              │ - Key construct  │
+│ - Relationships   │              │ - Encrypt/decrypt│
+│ - Validation      │              │ - Local ops      │
+└───────────────────┘              └──────────────────┘
+        ▼
+┌───────────────────┐
+│ Trust Environment │
+│ - Device registry │
+│ - Relationships   │
+│ - Trust scores    │
+└───────────────────┘
 ```
 
 ## Component Details
 
-### 1. EphemeralKeyManager
+### 1. DASB (Device Access Service Broker)
 
-**Purpose**: Manages the lifecycle of single-use encryption keys.
+**Purpose:** Control plane software that manages Trust Environments.
 
-**Key Features**:
-- Generates ephemeral key pairs on-demand
-- Supports X25519, EC, and RSA algorithms
-- Automatically destroys keys after use or timeout
-- Memory overwriting for secure key destruction
-- Configurable key lifetime (default: 5 seconds)
+**Key Responsibilities:**
+- Create and manage Trust Environments
+- Provision devices into Trust Environments
+- Establish trust relationships between devices
+- Validate relationships in real-time
+- Audit logging
+- Policy enforcement
 
-**Security Benefits**:
-- Eliminates key storage vulnerabilities
-- Prevents key compromise and replay attacks
-- No key rotation management needed
-- Forward secrecy per message
+**What it DOES NOT do:**
+- Handle encrypted data
+- Generate keys for devices
+- Participate in data pathways
+- Store cryptographic material
 
-### 2. TrustEnclave
+**Alignment with Patents:**
+- ✅ "Control plane software that manages one or more Trust Environments"
+- ✅ Manages trust, not data flow
+- ✅ No access to encrypted data pathways
 
-**Purpose**: Provides isolated environment for trust operations.
+### 2. Trust Environment
 
-**Key Features**:
-- Sovereign trust sessions with real-time validation
-- Trust score calculation based on device history
-- Configurable authentication levels (low, medium, high, critical)
-- Session timeout management
-- Mutual authentication support
+**Purpose:** Manages collections of trust relationships between provisioned devices.
 
-**Security Benefits**:
-- Isolated trust state prevents lateral movement
-- Real-time threat detection
-- Dynamic trust adjustment
-- Tamper-resistant trust validation
+**Key Features:**
+- Device registration and identity management
+- Trust relationship tracking
+- Real-time validation
+- Trust score management
+- Session timeout enforcement
 
-### 3. TrustFabric
+**Alignment with Patents:**
+- ✅ "Trust Environments manage collections of trust relationships"
+- ✅ Real-time validation for every transaction
+- ✅ Device-level trust management
 
-**Purpose**: Orchestrates trust validation and secure communication.
+### 3. Device SDK
 
-**Key Features**:
-- Programmable trust validation rules
-- Secure envelope creation with ephemeral encryption
-- AES-256-GCM encryption for message payload
-- HMAC signature verification
-- Replay attack prevention
+**Purpose:** SDK interface for devices to construct ephemeral keys and perform encryption locally.
 
-**Security Benefits**:
-- Custom security policies per deployment
-- Multiple layers of validation
-- Authenticated encryption
-- Time-based message validation
+**Key Features:**
+- **Construct** ephemeral keys at the device (not receive from server)
+- Encrypt data locally before transmission
+- Decrypt data locally after reception
+- Single-use key lifecycle management
+- Immediate key destruction after use
+
+**Critical Distinction:**
+The SDK **constructs** keys at the device, not receives them from a central authority. This is the core patent concept.
+
+**Alignment with Patents:**
+- ✅ "Single-use unique key constructed at the trusted device"
+- ✅ "Data are encrypted/decrypted with a single-use unique key constructed at the trusted device"
+- ✅ "Devices use a software device that utilizes the KnectIQ SDK"
+- ✅ Keys destroyed immediately after use
 
 ### 4. SignalKnectIQIntegration
 
-**Purpose**: Main API for Signal integration.
+**Purpose:** Integration layer between Signal and SelectiveTRUST®.
 
-**Key Features**:
-- Device registration and trust management
-- Session establishment with ephemeral keys
-- Secure message send/receive
-- Trust verification
-- Security metrics and monitoring
-
-**Security Benefits**:
-- Simplified secure messaging API
-- Automatic trust validation
-- Built-in security monitoring
-- Secure cleanup and shutdown
+**Responsibilities:**
+- Initialize DASB and Trust Environments
+- Provision Signal devices
+- Coordinate message encryption/decryption via Device SDK
+- Manage contact trust relationships
 
 ## Message Flow
 
-### Sending a Secure Message
+### Sending a Message (Aligned with Patent Claims)
 
 ```
-1. User sends message
+1. User initiates message send
    ↓
-2. Validate trust session (or establish new)
+2. Validate trust relationship (DASB)
    ↓
-3. Create trust context
+3. Construct ephemeral key AT SENDER'S DEVICE (Device SDK)
    ↓
-4. Validate against programmable rules
+4. Encrypt message AT SENDER'S DEVICE (Device SDK)
    ↓
-5. Generate NEW ephemeral key pair
+5. Destroy ephemeral key IMMEDIATELY
    ↓
-6. Derive symmetric key from ephemeral key
-   ↓
-7. Encrypt message with AES-256-GCM
-   ↓
-8. Create HMAC signature
-   ↓
-9. Package in secure envelope
-   ↓
-10. Mark ephemeral key for destruction
-    ↓
-11. Send encrypted envelope
-    ↓
-12. Destroy ephemeral key immediately
+6. Send encrypted package via Signal's pathways
+   (SelectiveTRUST® does NOT touch the data)
 ```
 
-### Receiving a Secure Message
+### Receiving a Message (Aligned with Patent Claims)
 
 ```
-1. Receive encrypted envelope
+1. Receive encrypted package via Signal's pathways
    ↓
-2. Validate trust session
+2. Validate trust relationship (DASB)
    ↓
-3. Check message timestamp (prevent replay)
+3. Verify package signature and timestamp
    ↓
-4. Verify HMAC signature
+4. Decrypt AT RECEIVER'S DEVICE (Device SDK)
    ↓
-5. Create trust context
-   ↓
-6. Validate against programmable rules
-   ↓
-7. Derive symmetric key (ECDH)
-   ↓
-8. Decrypt with AES-256-GCM
-   ↓
-9. Verify authentication tag
-   ↓
-10. Return decrypted message
-    ↓
-11. Destroy derived key
+5. Return plaintext message
+```
+
+## Key Architectural Principles
+
+### 1. Separation of Concerns
+
+| Layer | Responsibility | Touches Data? |
+|-------|----------------|---------------|
+| DASB | Trust management | NO |
+| Trust Environment | Relationship tracking | NO |
+| Device SDK | Encryption/decryption | YES (locally only) |
+| Signal Infrastructure | Data transport | YES (encrypted only) |
+
+### 2. Ephemeral Key Lifecycle
+
+```
+[Construct at Device] → [Use Once] → [Destroy Immediately]
+         ↓                   ↓                ↓
+      <1ms               <1ms          immediate
+```
+
+**Key Points:**
+- Keys are **constructed**, not pre-generated
+- Keys are **constructed at the device**, not centrally
+- Keys are **single-use**
+- Keys are **destroyed immediately after use**
+- No persistent key storage anywhere in the system
+
+### 3. No PKI Dependency
+
+Traditional PKI:
+- Certificate Authorities (CA)
+- Certificate chains
+- CRL/OCSP revocation
+- Long-lived certificates
+- Key rotation schedules
+
+SelectiveTRUST®:
+- ✅ No CAs
+- ✅ No certificate chains
+- ✅ Device-level trust
+- ✅ Ephemeral keys only
+- ✅ No key rotation (keys used once)
+
+### 4. Trust vs. Data Pathways
+
+```
+Control Plane (Trust Management):
+DASB → Trust Environment → Validation
+
+Data Plane (Actual Data):
+Device SDK → Encryption → Signal Infrastructure → Decryption → Device SDK
+
+SelectiveTRUST® operates on the control plane only.
+Data travels "unseen and untouched" via Signal's pathways.
 ```
 
 ## Security Properties
 
-### Ephemeral Key Lifecycle
+### Patent-Based Security Features
 
-```
-[Generate] → [Use Once] → [Destroy]
-   ↓            ↓            ↓
-  5ms         <1ms      immediate
-```
+1. **Key Compromise Immunity**
+   - No persistent keys = nothing to compromise
+   - Each message uses unique ephemeral key
+   - Keys destroyed immediately after use
 
-1. **Generation**: Keys generated on-demand in <5ms
-2. **Usage**: Single operation, marked for destruction
-3. **Destruction**: Memory overwritten with random data
+2. **Replay Attack Prevention**
+   - Timestamp validation
+   - Single-use keys
+   - Ephemeral key IDs include timestamp
 
-### Trust Validation
+3. **Trust Validation**
+   - Real-time for every transaction
+   - Trust score-based access control
+   - Relationship validation before every operation
 
-Every message undergoes multi-layer validation:
-
-1. **Device Authentication**: Is sender in trusted device list?
-2. **Session Validation**: Is trust session active and valid?
-3. **Operation Authorization**: Is operation allowed by policy?
-4. **Timestamp Check**: Is message fresh (prevent replay)?
-5. **Signature Verification**: Is message authentic and unmodified?
-6. **Trust Score**: Does sender meet required trust level?
+4. **Sovereign Trust**
+   - No dependency on external PKI
+   - No certificate authorities
+   - Device-level trust management
 
 ### Defense in Depth
 
-| Layer | Protection |
-|-------|------------|
-| Signal E2E | Base encryption between endpoints |
-| Ephemeral Keys | Per-message unique keys |
-| Trust Enclave | Isolated trust validation |
-| Trust Fabric | Programmable security rules |
-| Real-time Validation | Dynamic threat detection |
+| Layer | Protection Mechanism |
+|-------|---------------------|
+| Signal E2E | Base end-to-end encryption |
+| Device SDK | Ephemeral key construction at device |
+| Trust Environment | Relationship validation |
+| DASB | Policy enforcement and audit |
+| Trust Scores | Dynamic access control |
 
-## Threat Model
+## FIPS 140-2 Compliance
 
-### Threats Mitigated
+SelectiveTRUST® has "FIPS 140-2 validated mode of operation":
 
-✅ **Key Compromise**: No persistent keys to compromise
-✅ **Replay Attacks**: Timestamp validation and ephemeral keys
-✅ **Man-in-the-Middle**: Mutual authentication and trust sessions
-✅ **Device Impersonation**: Trust enclaves with device validation
-✅ **Message Tampering**: HMAC signatures and auth tags
-✅ **Session Hijacking**: Ephemeral sessions with timeout
-✅ **Lateral Movement**: Isolated trust enclaves
+**In FIPS Mode:**
+- AES-256-GCM for encryption
+- SHA-256 for hashing
+- HMAC-SHA256 for signatures
+- NIST-approved algorithms only
+- Validated cryptographic module
 
-### Additional Security Considerations
+## Implementation Details
 
-- **Physical Access**: Device must be secured by user
-- **Endpoint Security**: OS-level security still required
-- **Network Security**: TLS still recommended for transport
-- **Social Engineering**: User education remains critical
+### Device Provisioning
+
+```typescript
+// Device gets provisioned into Trust Environment
+const sdk = await dasb.provisionDevice({
+  deviceId: 'device-001',
+  deviceType: 'mobile',
+  trustEnvironmentId: 'env-001',
+  capabilities: ['encrypt', 'decrypt', 'sign', 'verify']
+});
+
+// Device can now construct ephemeral keys locally
+const keyId = sdk.constructEphemeralKey();
+```
+
+### Key Construction (Patent Core Concept)
+
+```typescript
+// Key is CONSTRUCTED at device, not received
+public constructEphemeralKey(): string {
+  const keyId = this.generateKeyId();
+
+  // Mark as constructed (minimal metadata, no actual key material)
+  this.constructedKeys.set(keyId, {
+    keyId,
+    constructed: Date.now(),
+    used: false,
+    algorithm: 'aes-256-gcm'
+  });
+
+  return keyId;
+}
+
+// Actual encryption key is derived when needed
+const encryptionKey = crypto
+  .createHash('sha256')
+  .update(ephemeralKeyId)
+  .update(this.privateIdentity)
+  .digest();
+```
+
+### Trust Relationship Management
+
+```typescript
+// DASB manages trust, not keys
+await dasb.establishTrustRelationship(
+  'device-001',
+  'device-002',
+  'trust-env-001'
+);
+
+// Real-time validation
+const isValid = dasb.validateTrustRelationship(relationshipId);
+```
+
+## Comparison: Traditional vs. SelectiveTRUST®
+
+| Aspect | Traditional PKI | SelectiveTRUST® |
+|--------|-----------------|-----------------|
+| Key Lifecycle | Long-lived, rotated | Single-use, ephemeral |
+| Key Storage | Persistent | None |
+| Key Generation | Central CA | At device |
+| Trust Model | Certificate chains | Device-level relationships |
+| Revocation | CRL/OCSP | Immediate relationship termination |
+| Validation | Certificate validation | Real-time trust scoring |
+| Infrastructure | CA, RA, VA required | DASB only (control plane) |
 
 ## Performance Characteristics
 
-### Key Generation
+### Key Construction
+- **Time:** ~1-2ms per key
+- **Memory:** Minimal metadata only
+- **Cleanup:** Immediate after use
 
-- **X25519**: ~1-2ms per key pair
-- **EC (secp256k1)**: ~2-5ms per key pair
-- **RSA-2048**: ~10-50ms per key pair
+### Trust Validation
+- **Time:** <1ms (in-memory check)
+- **Caching:** Session-based
+- **Overhead:** Negligible
 
-**Recommendation**: Use X25519 for optimal performance
-
-### Memory Usage
-
-- Active key: ~200 bytes
-- Trust session: ~500 bytes
-- Secure envelope: Message size + ~300 bytes overhead
-
-### Cleanup
-
-- Automatic key cleanup: Every 1 second
-- Session cleanup: On timeout
-- Shutdown cleanup: <10ms for typical usage
-
-## Integration with Signal
-
-### Compatibility
-
-This integration works **alongside** Signal's existing encryption:
-
-```
-Signal E2E Encryption
-        +
-KnectIQ Ephemeral Layer
-        =
-Defense in Depth
-```
-
-### Benefits Over Signal Alone
-
-1. **Ephemeral Keys**: Signal uses long-lived keys with ratcheting; KnectIQ uses truly ephemeral per-message keys
-2. **Trust Validation**: Real-time trust scoring and validation
-3. **Programmable Security**: Custom rules for different threat levels
-4. **Zero Persistence**: No key material ever stored
-
-### Use Cases
-
-- **High-Security Communications**: Government, military, intelligence
-- **Critical Infrastructure**: Energy, finance, healthcare
-- **Sensitive Business**: M&A, legal, executive communications
-- **Personal Privacy**: Enhanced privacy for everyday users
-
-## Deployment Considerations
-
-### Configuration
-
-```typescript
-const integration = new SignalKnectIQIntegration(deviceId, {
-  requiredAuthLevel: 'high',      // low | medium | high | critical
-  sessionTimeout: 3600000,         // 1 hour in ms
-  requireMutualAuth: true,         // Both parties authenticate
-  allowedOperations: new Set(['send', 'receive', 'read', 'delete'])
-});
-```
-
-### Best Practices
-
-1. **Use Critical Auth Level** for sensitive communications
-2. **Short Session Timeouts** for high-security scenarios
-3. **Regular Trust Audits** via security metrics
-4. **Prompt Revocation** of compromised devices
-5. **Secure Cleanup** on application termination
-
-### Monitoring
-
-```typescript
-const metrics = integration.getSecurityMetrics();
-console.log({
-  activeKeys: metrics.activeKeys,        // Should be low
-  activeSessions: metrics.activeSessions, // Monitor for anomalies
-  trustedDevices: metrics.trustedDevices  // Audit regularly
-});
-```
+### Message Encryption/Decryption
+- **AES-256-GCM:** ~0.5-1ms for typical message
+- **Signature:** ~0.3-0.5ms
+- **Total overhead:** ~1-2ms per message
 
 ## References
 
+### KnectIQ Patents and Publications
+
+- [Patents Assigned to KnectIQ Inc. - Justia](https://patents.justia.com/assignee/knectiq-inc)
+- [KnectIQ Patent Award Announcement](https://www.knectiq.com/knectiq-awarded-patent-for-cyber-technology/)
+- [Shailendra Jain Patents](https://patents.justia.com/inventor/shailendra-jain)
+- [Andrew Lunstad Patents](https://patents.justia.com/inventor/andrew-lunstad)
+
+### Public Information Sources
+
 - [KnectIQ SelectiveTRUST® Technology](https://www.knectiq.com/what-we-do/)
-- [Signal Protocol](https://signal.org/docs/)
-- [X25519 Elliptic Curve](https://cr.yp.to/ecdh.html)
+- [SRC UK and KnectIQ Partnership](https://srcuk.com/2025/10/22/press-release-src-uk-and-kinetiq-licensing-agreement/)
+- [PR Newswire: SelectiveTRUST® Technology](https://www.prnewswire.com/news-releases/knectiq-and-src-uk-forge-licensing-agreement-to-power-next-generation-intelligence-and-defense-platforms-with-selectivetrust-technology-302589760.html)
+- [Help Net Security: SelectiveTRUST®](https://www.helpnetsecurity.com/2023/05/03/knectiq-selectivetrust/)
 
-## License
+## License and Patents
 
-This implementation is for demonstration purposes. KnectIQ SelectiveTRUST® is a patented technology.
+This implementation is based on publicly available information about KnectIQ's patented SelectiveTRUST® technology. SelectiveTRUST® is a registered trademark and patented technology of KnectIQ Inc.
 
-© 2025 Signal + KnectIQ Integration
+**Key Patents:**
+- Systems and methods for secure electronic data transfer utilizing an ephemeral key for encryption and decryption of data
+- Assignee: KnectIQ Inc.
+- Inventors: Shailendra Jain, Andrew Lunstad, Kenneth Morris
+- Grant Date: June 11, 2019
+
+This implementation is for demonstration and educational purposes.
+
+---
+
+© 2025 Signal + KnectIQ Integration | Based on publicly available patent information

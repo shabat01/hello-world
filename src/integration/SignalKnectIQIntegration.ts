@@ -1,327 +1,360 @@
 /**
  * Signal + KnectIQ SelectiveTRUST® Integration
  *
- * Enhances Signal's already strong security with KnectIQ's patented
- * ephemeral trust architecture:
+ * Integrates Signal messaging with KnectIQ's patented SelectiveTRUST®
+ * architecture for ephemeral trust management.
  *
- * - Completely ephemeral encryption keys (no key storage)
- * - Real-time trust validation for every message
- * - Sovereign trust enclaves for isolated secure operations
- * - Machine-to-machine trust fabric
- * - Zero-knowledge architecture
- * - Prevents breaches before they occur
+ * Architecture based on KnectIQ patents:
+ * - DASB (Device Access Service Broker) manages trust environments
+ * - Devices use SDK to construct ephemeral keys locally
+ * - Data encrypted at device, travels via separate pathways
+ * - No PKI dependency, no centralized key storage
+ * - Real-time trust validation for every transaction
  *
- * This integration works alongside Signal's existing E2E encryption,
- * providing an additional layer of ephemeral security.
+ * This enhances Signal's E2E encryption with an additional layer of
+ * ephemeral trust management and device-constructed single-use keys.
  */
 
-import { TrustFabric, TrustContext, SecureEnvelope } from '../core/TrustFabric';
-import { TrustPolicy, TrustSession } from '../core/TrustEnclave';
-import { EphemeralKeyManager } from '../core/EphemeralKeyManager';
-import crypto from 'crypto';
+import {
+  DeviceAccessServiceBroker,
+  DASBConfig,
+  DeviceProvisionRequest
+} from '../core/DeviceAccessServiceBroker';
+import { TrustEnvironmentConfig } from '../core/TrustEnvironment';
+import { DeviceSDK, SecureDataPackage } from '../core/DeviceSDK';
 
 export interface SignalMessage {
   messageId: string;
   sender: string;
   recipient: string;
-  content: Buffer;
+  content: string;
   timestamp: number;
 }
 
-export interface SecureSignalMessage extends SignalMessage {
-  knectiqEnvelope: SecureEnvelope;
-  ephemeralKeyFingerprint: string;
-  trustValidated: boolean;
-}
-
-export interface DeviceRegistration {
+export interface SignalDevice {
   deviceId: string;
-  publicKey: Buffer;
-  registrationTime: number;
-  trustScore: number;
+  phoneNumber: string;
+  deviceType: 'mobile' | 'desktop' | 'tablet';
+  capabilities: string[];
 }
 
+export interface IntegrationConfig {
+  trustEnvironmentName: string;
+  maxDevices?: number;
+  sessionTimeout?: number;
+  requiredTrustScore?: number;
+  fipsMode?: boolean;
+}
+
+/**
+ * Signal + KnectIQ SelectiveTRUST® Integration
+ *
+ * Main integration class that sets up SelectiveTRUST® architecture
+ * for Signal messaging with ephemeral keys and sovereign trust.
+ */
 export class SignalKnectIQIntegration {
-  private trustFabric: TrustFabric;
-  private deviceId: string;
-  private registeredDevices: Map<string, DeviceRegistration> = new Map();
-  private activeTrustSessions: Map<string, TrustSession> = new Map();
+  private dasb: DeviceAccessServiceBroker;
+  private trustEnvironmentId: string;
+  private localDeviceSDK: DeviceSDK | null = null;
+  private localDeviceId: string;
+  private remoteDevices: Map<string, { sdk: DeviceSDK; phoneNumber: string }> = new Map();
 
-  constructor(deviceId: string, trustPolicy?: Partial<TrustPolicy>) {
-    this.deviceId = deviceId;
+  constructor(localDevice: SignalDevice, config: IntegrationConfig) {
+    this.localDeviceId = localDevice.deviceId;
+    this.trustEnvironmentId = `signal-${config.trustEnvironmentName}`;
 
-    // Create default trust policy optimized for Signal
-    const defaultPolicy: TrustPolicy = {
-      allowedDevices: new Set<string>(),
-      requiredAuthLevel: 'high', // Signal requires high security
-      sessionTimeout: 3600000, // 1 hour
-      requireMutualAuth: true, // Both parties must authenticate
-      allowedOperations: new Set(['send', 'receive', 'read', 'delete']),
-      ...trustPolicy
+    // Initialize DASB (Device Access Service Broker)
+    const dasbConfig: DASBConfig = {
+      dasbId: `dasb-${localDevice.deviceId}`,
+      mode: config.fipsMode ? 'fips-140-2' : 'standard',
+      maxTrustEnvironments: 10,
+      auditLogging: true
     };
 
-    this.trustFabric = new TrustFabric(deviceId, defaultPolicy);
-  }
+    this.dasb = new DeviceAccessServiceBroker(dasbConfig);
 
-  /**
-   * Register a trusted Signal contact/device
-   */
-  public async registerTrustedDevice(
-    deviceId: string,
-    publicKey: Buffer
-  ): Promise<DeviceRegistration> {
-    const registration: DeviceRegistration = {
-      deviceId,
-      publicKey,
-      registrationTime: Date.now(),
-      trustScore: 100 // Initial trust score
+    // Create Trust Environment for Signal messaging
+    const trustEnvConfig: TrustEnvironmentConfig = {
+      name: config.trustEnvironmentName,
+      maxDevices: config.maxDevices || 100,
+      sessionTimeout: config.sessionTimeout || 3600000, // 1 hour default
+      requiredTrustScore: config.requiredTrustScore || 80,
+      allowedOperations: new Set(['send', 'receive', 'read'])
     };
 
-    this.registeredDevices.set(deviceId, registration);
+    this.dasb.createTrustEnvironment(this.trustEnvironmentId, trustEnvConfig);
 
-    // Add to trust policy
-    const enclave = this.trustFabric.getTrustEnclave();
-    enclave.updateTrustPolicy({
-      allowedDevices: new Set([
-        ...Array.from(this.registeredDevices.keys())
-      ])
-    });
-
-    return registration;
+    // Provision local device
+    this.provisionLocalDevice(localDevice);
   }
 
   /**
-   * Establish ephemeral trust session before message exchange
+   * Provision the local Signal device
    */
-  public async establishMessageSession(
-    recipientDeviceId: string
-  ): Promise<TrustSession> {
-    const registration = this.registeredDevices.get(recipientDeviceId);
+  private async provisionLocalDevice(device: SignalDevice): Promise<void> {
+    const provisionRequest: DeviceProvisionRequest = {
+      deviceId: device.deviceId,
+      deviceType: device.deviceType,
+      trustEnvironmentId: this.trustEnvironmentId,
+      capabilities: ['encrypt', 'decrypt', 'sign', 'verify', ...device.capabilities]
+    };
 
-    if (!registration) {
-      throw new Error(
-        `Device ${recipientDeviceId} not registered. Register with registerTrustedDevice() first.`
-      );
-    }
-
-    // Establish trust session with ephemeral keys
-    const session = await this.trustFabric.establishTrust(
-      recipientDeviceId,
-      registration.publicKey
-    );
-
-    this.activeTrustSessions.set(recipientDeviceId, session);
-
-    return session;
+    this.localDeviceSDK = await this.dasb.provisionDevice(provisionRequest);
   }
 
   /**
-   * Send Signal message with KnectIQ ephemeral encryption
+   * Add a trusted Signal contact
    *
-   * This wraps Signal's existing E2E encryption with an additional
-   * layer of ephemeral security that uses single-use keys
+   * Provisions the remote device and establishes trust relationship
    */
-  public async sendSecureMessage(
-    recipient: string,
-    content: string | Buffer
-  ): Promise<SecureSignalMessage> {
-    // Get or establish trust session
-    let session = this.activeTrustSessions.get(recipient);
-
-    if (!session || !this.trustFabric.getTrustEnclave().validateSession(session.sessionId)) {
-      session = await this.establishMessageSession(recipient);
+  public async addTrustedContact(
+    contactDevice: SignalDevice
+  ): Promise<void> {
+    if (!this.localDeviceSDK) {
+      throw new Error('Local device not provisioned');
     }
 
-    // Convert content to Buffer
-    const contentBuffer = Buffer.isBuffer(content)
-      ? content
-      : Buffer.from(content, 'utf8');
-
-    // Create trust context for validation
-    const trustContext: TrustContext = {
-      sourceDevice: this.deviceId,
-      targetDevice: recipient,
-      operation: 'send',
-      payload: contentBuffer,
-      timestamp: Date.now()
+    // Provision remote device
+    const provisionRequest: DeviceProvisionRequest = {
+      deviceId: contactDevice.deviceId,
+      deviceType: contactDevice.deviceType,
+      trustEnvironmentId: this.trustEnvironmentId,
+      capabilities: ['encrypt', 'decrypt', 'sign', 'verify', ...contactDevice.capabilities]
     };
 
-    // Validate trust context through programmable rules
-    if (!this.trustFabric.validateTrustContext(trustContext)) {
-      throw new Error('Trust validation failed - message blocked by security policy');
-    }
+    const remoteSDK = await this.dasb.provisionDevice(provisionRequest);
 
-    // Create secure envelope with ephemeral encryption
-    // Each message gets a NEW key that is destroyed immediately after use
-    const envelope = await this.trustFabric.createSecureEnvelope(
-      session.sessionId,
-      contentBuffer,
-      'send'
+    // Establish trust relationship via DASB
+    await this.dasb.establishTrustRelationship(
+      this.localDeviceId,
+      contactDevice.deviceId,
+      this.trustEnvironmentId
     );
 
-    // Create ephemeral key fingerprint for verification
-    const ephemeralKeyFingerprint = crypto
-      .createHash('sha256')
-      .update(envelope.ephemeralKeyId)
-      .digest('hex');
-
-    const secureMessage: SecureSignalMessage = {
-      messageId: this.generateMessageId(),
-      sender: this.deviceId,
-      recipient,
-      content: contentBuffer,
-      timestamp: Date.now(),
-      knectiqEnvelope: envelope,
-      ephemeralKeyFingerprint,
-      trustValidated: true
-    };
-
-    return secureMessage;
+    // Store remote device info
+    this.remoteDevices.set(contactDevice.deviceId, {
+      sdk: remoteSDK,
+      phoneNumber: contactDevice.phoneNumber
+    });
   }
 
   /**
-   * Receive and decrypt Signal message with KnectIQ validation
+   * Send secure Signal message with ephemeral encryption
+   *
+   * Process:
+   * 1. Construct ephemeral key AT THE LOCAL DEVICE (not centrally)
+   * 2. Encrypt message locally with single-use key
+   * 3. Key is destroyed immediately after encryption
+   * 4. Encrypted data travels via Signal's pathways
+   * 5. SelectiveTRUST provides trust management, not data transport
    */
-  public async receiveSecureMessage(
-    secureMessage: SecureSignalMessage
-  ): Promise<SignalMessage> {
-    // Validate sender is registered
-    const senderRegistration = this.registeredDevices.get(secureMessage.sender);
-
-    if (!senderRegistration) {
-      throw new Error(`Sender ${secureMessage.sender} not in trusted devices`);
+  public async sendMessage(
+    recipientDeviceId: string,
+    message: string
+  ): Promise<SecureDataPackage> {
+    if (!this.localDeviceSDK) {
+      throw new Error('Local device not provisioned');
     }
 
-    // Validate trust session
-    const enclave = this.trustFabric.getTrustEnclave();
-    if (!enclave.validateSession(secureMessage.knectiqEnvelope.sessionId)) {
-      throw new Error('Message session invalid or expired');
+    const remoteDevice = this.remoteDevices.get(recipientDeviceId);
+
+    if (!remoteDevice) {
+      throw new Error(`Recipient ${recipientDeviceId} not in trusted contacts`);
     }
 
-    // Create trust context for validation
-    const trustContext: TrustContext = {
-      sourceDevice: secureMessage.sender,
-      targetDevice: this.deviceId,
-      operation: 'receive',
-      payload: secureMessage.knectiqEnvelope.encryptedPayload,
-      timestamp: secureMessage.timestamp
-    };
-
-    // Validate trust context
-    if (!this.trustFabric.validateTrustContext(trustContext)) {
-      throw new Error('Trust validation failed - message rejected');
+    // Validate trust relationship before sending
+    const trustEnv = this.dasb.getTrustEnvironment(this.trustEnvironmentId);
+    if (!trustEnv) {
+      throw new Error('Trust environment not found');
     }
 
-    // Unwrap secure envelope and decrypt with ephemeral key validation
-    const decryptedContent = await this.trustFabric.unwrapSecureEnvelope(
-      secureMessage.knectiqEnvelope,
-      senderRegistration.publicKey
+    // Real-time trust validation
+    const relationships = trustEnv.getDeviceRelationships(this.localDeviceId);
+    const hasValidRelationship = relationships.some(
+      r => (r.deviceA === recipientDeviceId || r.deviceB === recipientDeviceId) && r.active
     );
 
-    // Return plain Signal message
+    if (!hasValidRelationship) {
+      throw new Error('No valid trust relationship with recipient');
+    }
+
+    // Construct ephemeral key AT THIS DEVICE (core patent concept)
+    const ephemeralKeyId = this.localDeviceSDK.constructEphemeralKey();
+
+    // Encrypt message locally using device SDK
+    const messageBuffer = Buffer.from(message, 'utf8');
+    const securePackage = this.localDeviceSDK.encryptData(
+      messageBuffer,
+      recipientDeviceId,
+      ephemeralKeyId
+    );
+
+    // Note: At this point, the ephemeral key is already destroyed
+    // The encrypted package would now travel via Signal's infrastructure
+    // SelectiveTRUST does NOT touch or see the encrypted data
+
+    return securePackage;
+  }
+
+  /**
+   * Receive and decrypt secure Signal message
+   *
+   * Process:
+   * 1. Receive encrypted package via Signal infrastructure
+   * 2. Validate trust relationship
+   * 3. Decrypt AT THE LOCAL DEVICE using ephemeral key reconstruction
+   * 4. Return plaintext message
+   */
+  public async receiveMessage(
+    securePackage: SecureDataPackage
+  ): Promise<SignalMessage> {
+    if (!this.localDeviceSDK) {
+      throw new Error('Local device not provisioned');
+    }
+
+    // Validate sender is in trusted contacts
+    if (!this.remoteDevices.has(securePackage.sourceDeviceId)) {
+      throw new Error(`Sender ${securePackage.sourceDeviceId} not in trusted contacts`);
+    }
+
+    // Real-time trust validation
+    const trustEnv = this.dasb.getTrustEnvironment(this.trustEnvironmentId);
+    if (!trustEnv) {
+      throw new Error('Trust environment not found');
+    }
+
+    const relationships = trustEnv.getDeviceRelationships(this.localDeviceId);
+    const hasValidRelationship = relationships.some(
+      r => (r.deviceA === securePackage.sourceDeviceId || r.deviceB === securePackage.sourceDeviceId) && r.active
+    );
+
+    if (!hasValidRelationship) {
+      throw new Error('No valid trust relationship with sender');
+    }
+
+    // Decrypt at local device
+    const decryptedBuffer = this.localDeviceSDK.decryptData(securePackage);
+    const messageContent = decryptedBuffer.toString('utf8');
+
     const message: SignalMessage = {
-      messageId: secureMessage.messageId,
-      sender: secureMessage.sender,
-      recipient: secureMessage.recipient,
-      content: decryptedContent,
-      timestamp: secureMessage.timestamp
+      messageId: securePackage.packageId,
+      sender: securePackage.sourceDeviceId,
+      recipient: this.localDeviceId,
+      content: messageContent,
+      timestamp: securePackage.timestamp
     };
 
     return message;
   }
 
   /**
-   * Verify message integrity and ephemeral trust
+   * Remove a trusted contact
+   *
+   * Revokes trust relationship and deprovisions device
    */
-  public async verifyMessageTrust(
-    secureMessage: SecureSignalMessage
-  ): Promise<boolean> {
-    try {
-      // Validate session exists and is active
-      const enclave = this.trustFabric.getTrustEnclave();
-      if (!enclave.validateSession(secureMessage.knectiqEnvelope.sessionId)) {
-        return false;
+  public async removeTrustedContact(contactDeviceId: string): Promise<void> {
+    // Find and revoke trust relationship
+    const trustEnv = this.dasb.getTrustEnvironment(this.trustEnvironmentId);
+    if (trustEnv) {
+      const relationships = trustEnv.getDeviceRelationships(this.localDeviceId);
+      for (const relationship of relationships) {
+        if (relationship.deviceA === contactDeviceId || relationship.deviceB === contactDeviceId) {
+          this.dasb.revokeTrustRelationship(relationship.relationshipId);
+        }
       }
-
-      // Validate sender is registered
-      if (!this.registeredDevices.has(secureMessage.sender)) {
-        return false;
-      }
-
-      // Validate message age (prevent replay)
-      const messageAge = Date.now() - secureMessage.timestamp;
-      if (messageAge > 300000) { // 5 minutes
-        return false;
-      }
-
-      return secureMessage.trustValidated;
-
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Revoke trust for a device (immediate termination)
-   */
-  public async revokeTrust(deviceId: string): Promise<void> {
-    // Remove from registered devices
-    this.registeredDevices.delete(deviceId);
-
-    // Terminate active session
-    const session = this.activeTrustSessions.get(deviceId);
-    if (session) {
-      this.trustFabric.getTrustEnclave().terminateSession(session.sessionId);
-      this.activeTrustSessions.delete(deviceId);
     }
 
-    // Update trust policy
-    const enclave = this.trustFabric.getTrustEnclave();
-    enclave.updateTrustPolicy({
-      allowedDevices: new Set([
-        ...Array.from(this.registeredDevices.keys())
-      ])
-    });
+    // Remove from local cache
+    this.remoteDevices.delete(contactDeviceId);
+
+    // Deprovision device
+    await this.dasb.deprovisionDevice(contactDeviceId);
   }
 
   /**
    * Get security metrics and monitoring data
    */
   public getSecurityMetrics(): {
-    activeKeys: number;
-    activeSessions: number;
-    trustedDevices: number;
-    deviceId: string;
+    localDevice: any;
+    trustedContacts: number;
+    dasbStatistics: any;
+    trustEnvironment: any;
   } {
+    const localStats = this.localDeviceSDK?.getStatistics() || null;
+    const dasbStats = this.dasb.getStatistics();
+    const trustEnv = this.dasb.getTrustEnvironment(this.trustEnvironmentId);
+    const trustEnvStats = trustEnv?.getStatistics() || null;
+
     return {
-      activeKeys: this.trustFabric.getKeyManager().getActiveKeyCount(),
-      activeSessions: this.trustFabric.getTrustEnclave().getActiveSessionCount(),
-      trustedDevices: this.registeredDevices.size,
-      deviceId: this.deviceId
+      localDevice: localStats,
+      trustedContacts: this.remoteDevices.size,
+      dasbStatistics: dasbStats,
+      trustEnvironment: trustEnvStats
     };
   }
 
   /**
-   * Generate unique message identifier
+   * Get audit log from DASB
    */
-  private generateMessageId(): string {
-    return crypto.randomBytes(16).toString('hex');
+  public getAuditLog(): Array<{ timestamp: number; event: string; details: any }> {
+    return this.dasb.getAuditLog();
   }
 
   /**
-   * Shutdown integration and clean up all ephemeral data
+   * Validate a contact's trust status
    */
-  public shutdown(): void {
-    // Terminate all sessions
-    for (const session of this.activeTrustSessions.values()) {
-      this.trustFabric.getTrustEnclave().terminateSession(session.sessionId);
+  public validateContactTrust(contactDeviceId: string): boolean {
+    const trustEnv = this.dasb.getTrustEnvironment(this.trustEnvironmentId);
+    if (!trustEnv) {
+      return false;
     }
 
-    // Clear all data
-    this.activeTrustSessions.clear();
-    this.registeredDevices.clear();
+    const relationships = trustEnv.getDeviceRelationships(this.localDeviceId);
+    return relationships.some(
+      r => (r.deviceA === contactDeviceId || r.deviceB === contactDeviceId) && r.active
+    );
+  }
 
-    // Shutdown trust fabric (destroys all ephemeral keys)
-    this.trustFabric.shutdown();
+  /**
+   * Update contact trust score
+   */
+  public updateContactTrustScore(contactDeviceId: string, newScore: number): void {
+    const trustEnv = this.dasb.getTrustEnvironment(this.trustEnvironmentId);
+    if (trustEnv) {
+      trustEnv.updateDeviceTrustScore(contactDeviceId, newScore);
+    }
+  }
+
+  /**
+   * Get list of trusted contacts
+   */
+  public getTrustedContacts(): Array<{ deviceId: string; phoneNumber: string }> {
+    return Array.from(this.remoteDevices.entries()).map(([deviceId, info]) => ({
+      deviceId,
+      phoneNumber: info.phoneNumber
+    }));
+  }
+
+  /**
+   * Shutdown integration
+   *
+   * Properly cleans up all resources and destroys all ephemeral keys
+   */
+  public shutdown(): void {
+    // Shutdown local device SDK
+    if (this.localDeviceSDK) {
+      this.localDeviceSDK.shutdown();
+    }
+
+    // Shutdown all remote device SDKs
+    for (const { sdk } of this.remoteDevices.values()) {
+      sdk.shutdown();
+    }
+
+    // Shutdown DASB (handles trust environments)
+    this.dasb.shutdown();
+
+    // Clear caches
+    this.remoteDevices.clear();
   }
 }

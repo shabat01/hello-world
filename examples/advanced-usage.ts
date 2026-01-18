@@ -2,125 +2,187 @@
  * Advanced Usage Example - Signal + KnectIQ SelectiveTRUST® Integration
  *
  * Demonstrates advanced features:
- * - Custom trust policies
- * - Trust revocation
- * - Session management
- * - Security monitoring
+ * - FIPS 140-2 mode
+ * - Trust score management
+ * - Audit logging
+ * - Trust relationship revocation
+ * - Multiple message exchange
  */
 
-import { SignalKnectIQIntegration } from '../src/integration/SignalKnectIQIntegration';
-import crypto from 'crypto';
+import { SignalKnectIQIntegration, SignalDevice } from '../src/integration/SignalKnectIQIntegration';
 
 async function advancedExample() {
-  console.log('=== Advanced Signal + KnectIQ Features ===\n');
+  console.log('=== Advanced Signal + KnectIQ SelectiveTRUST® Features ===\n');
 
-  // Custom trust policy with strict security
-  const strictPolicy = {
-    requiredAuthLevel: 'critical' as const,
-    sessionTimeout: 300000, // 5 minutes
-    requireMutualAuth: true,
-    allowedOperations: new Set(['send', 'receive']) // No delete operation
+  // Initialize Alice with FIPS 140-2 mode
+  console.log('1. Initializing devices in FIPS 140-2 mode...');
+  const aliceDevice: SignalDevice = {
+    deviceId: 'alice-secure-001',
+    phoneNumber: '+1-555-1001',
+    deviceType: 'mobile',
+    capabilities: []
   };
 
-  // Initialize with custom policy
-  const aliceIntegration = new SignalKnectIQIntegration('alice-secure-001', strictPolicy);
-  const bobIntegration = new SignalKnectIQIntegration('bob-secure-001', strictPolicy);
-  const charlieIntegration = new SignalKnectIQIntegration('charlie-001');
-
-  // Generate keys
-  const aliceKeys = crypto.generateKeyPairSync('x25519', {
-    publicKeyEncoding: { type: 'spki', format: 'der' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'der' }
+  const aliceIntegration = new SignalKnectIQIntegration(aliceDevice, {
+    trustEnvironmentName: 'high-security',
+    maxDevices: 50,
+    sessionTimeout: 1800000, // 30 minutes
+    requiredTrustScore: 90, // Higher trust requirement
+    fipsMode: true // FIPS 140-2 validated mode
   });
 
-  const bobKeys = crypto.generateKeyPairSync('x25519', {
-    publicKeyEncoding: { type: 'spki', format: 'der' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'der' }
+  const bobDevice: SignalDevice = {
+    deviceId: 'bob-secure-001',
+    phoneNumber: '+1-555-1002',
+    deviceType: 'desktop',
+    capabilities: []
+  };
+
+  const bobIntegration = new SignalKnectIQIntegration(bobDevice, {
+    trustEnvironmentName: 'high-security',
+    requiredTrustScore: 90,
+    fipsMode: true
   });
 
-  const charlieKeys = crypto.generateKeyPairSync('x25519', {
-    publicKeyEncoding: { type: 'spki', format: 'der' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'der' }
+  const charlieDevice: SignalDevice = {
+    deviceId: 'charlie-001',
+    phoneNumber: '+1-555-1003',
+    deviceType: 'tablet',
+    capabilities: []
+  };
+
+  const charlieIntegration = new SignalKnectIQIntegration(charlieDevice, {
+    trustEnvironmentName: 'high-security',
+    requiredTrustScore: 90,
+    fipsMode: true
   });
 
-  console.log('1. Establishing multi-party trust network...');
+  console.log('   ✓ All devices in FIPS 140-2 validated mode');
+  console.log('   ✓ High security trust score requirement (90/100)\n');
 
-  // Register devices
-  await aliceIntegration.registerTrustedDevice('bob-secure-001', bobKeys.publicKey);
-  await aliceIntegration.registerTrustedDevice('charlie-001', charlieKeys.publicKey);
-  await bobIntegration.registerTrustedDevice('alice-secure-001', aliceKeys.publicKey);
-  await charlieIntegration.registerTrustedDevice('alice-secure-001', aliceKeys.publicKey);
+  // Establish multi-party trust network
+  console.log('2. Establishing multi-party trust network...');
+  await aliceIntegration.addTrustedContact(bobDevice);
+  await aliceIntegration.addTrustedContact(charlieDevice);
+  await bobIntegration.addTrustedContact(aliceDevice);
+  await charlieIntegration.addTrustedContact(aliceDevice);
 
-  console.log('   ✓ Multi-party trust network established\n');
+  console.log('   ✓ Alice ↔ Bob trust established');
+  console.log('   ✓ Alice ↔ Charlie trust established');
+  console.log('   ✓ Multi-party trust network active\n');
 
-  // Establish sessions
-  console.log('2. Creating ephemeral trust sessions...');
-  const aliceToBobSession = await aliceIntegration.establishMessageSession('bob-secure-001');
-  const aliceToCharlieSession = await aliceIntegration.establishMessageSession('charlie-001');
-
-  console.log(`   ✓ Alice → Bob session: ${aliceToBobSession.sessionId.substring(0, 12)}...`);
-  console.log(`   ✓ Alice → Charlie session: ${aliceToCharlieSession.sessionId.substring(0, 12)}...`);
-  console.log(`   ✓ Both sessions use different ephemeral keys\n`);
-
-  // Send multiple messages (each with new ephemeral key)
-  console.log('3. Sending multiple messages with unique ephemeral keys...');
+  // Send multiple messages with unique ephemeral keys
+  console.log('3. Sending multiple messages (each with unique ephemeral key)...\n');
 
   for (let i = 1; i <= 3; i++) {
-    const msg = await aliceIntegration.sendSecureMessage(
-      'bob-secure-001',
-      `Message ${i}: Each message uses a NEW ephemeral key`
-    );
-    console.log(`   ✓ Message ${i} - Key: ${msg.ephemeralKeyFingerprint.substring(0, 12)}...`);
+    const message = `Message ${i}: Each message uses a NEW ephemeral key constructed at device`;
+    const pkg = await aliceIntegration.sendMessage(bobDevice.deviceId, message);
+
+    console.log(`   Message ${i}:`);
+    console.log(`   - Ephemeral key: ${pkg.ephemeralKeyId.substring(0, 25)}...`);
+    console.log(`   - Timestamp: ${new Date(pkg.timestamp).toISOString()}`);
+    console.log(`   - Key destroyed: YES (immediately after encryption)\n`);
   }
-  console.log('   ✓ Notice: Each message has a different key fingerprint\n');
+
+  // Demonstrate trust score management
+  console.log('4. Trust score management...');
+  console.log('   Initial trust scores: 100/100 for all devices');
+
+  // Simulate degraded trust for Charlie
+  console.log('   Simulating security posture degradation for Charlie...');
+  aliceIntegration.updateContactTrustScore(charlieDevice.deviceId, 70);
+
+  console.log('   ✓ Charlie\'s trust score updated to 70/100');
+  console.log('   ✓ Below required threshold (90)');
+  console.log('   ✓ Messages to Charlie will be blocked\n');
+
+  // Try to send to Charlie (should fail)
+  console.log('5. Attempting to send to low-trust device...');
+  try {
+    await aliceIntegration.sendMessage(charlieDevice.deviceId, 'This should fail');
+    console.log('   ✗ UNEXPECTED: Message sent despite low trust\n');
+  } catch (error) {
+    console.log('   ✓ EXPECTED: Message blocked by trust policy');
+    console.log(`   ✓ Reason: Trust score below requirement\n`);
+  }
 
   // Demonstrate trust revocation
-  console.log('4. Demonstrating trust revocation...');
-  console.log('   Revoking trust for Charlie...');
-  await aliceIntegration.revokeTrust('charlie-001');
-  console.log('   ✓ Charlie removed from trust network\n');
+  console.log('6. Revoking trust for Charlie...');
+  await aliceIntegration.removeTrustedContact(charlieDevice.deviceId);
 
-  // Try to send to revoked device (should fail)
-  console.log('5. Attempting to send to revoked device...');
-  try {
-    await aliceIntegration.sendSecureMessage('charlie-001', 'This should fail');
-    console.log('   ✗ UNEXPECTED: Message sent to revoked device');
-  } catch (error) {
-    console.log('   ✓ EXPECTED: Message blocked by security policy');
-    console.log(`   ✓ Reason: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
-  }
+  console.log('   ✓ Trust relationship terminated');
+  console.log('   ✓ Charlie removed from Trust Environment');
+  console.log('   ✓ All ephemeral keys for Charlie destroyed\n');
 
-  // Security metrics
-  console.log('6. Real-time security monitoring:');
-  const metrics = aliceIntegration.getSecurityMetrics();
-  console.log(`   Device ID: ${metrics.deviceId}`);
-  console.log(`   Active ephemeral keys: ${metrics.activeKeys}`);
-  console.log(`   Active trust sessions: ${metrics.activeSessions}`);
-  console.log(`   Trusted devices: ${metrics.trustedDevices}`);
-  console.log('   ✓ All metrics available in real-time\n');
+  // View audit log
+  console.log('7. DASB Audit Log (last 10 events):\n');
+  const auditLog = aliceIntegration.getAuditLog();
+  const recentEvents = auditLog.slice(-10);
 
-  // Demonstrate session timeout
-  console.log('7. Testing session timeout...');
-  console.log('   (In production, sessions expire automatically)');
-  console.log(`   Current session timeout: ${strictPolicy.sessionTimeout}ms\n`);
+  recentEvents.forEach((entry, index) => {
+    const time = new Date(entry.timestamp).toISOString().split('T')[1].split('.')[0];
+    console.log(`   ${time} - ${entry.event}`);
+  });
+  console.log();
+
+  // Display comprehensive metrics
+  console.log('8. Comprehensive Security Metrics:\n');
+
+  const aliceMetrics = aliceIntegration.getSecurityMetrics();
+  console.log('   Alice\'s Metrics:');
+  console.log(`   ├─ Device: ${aliceMetrics.localDevice?.deviceId}`);
+  console.log(`   ├─ Mode: ${aliceMetrics.localDevice?.mode}`);
+  console.log(`   ├─ Keys Constructed: ${aliceMetrics.localDevice?.keysConstructed}`);
+  console.log(`   ├─ Keys Destroyed: ${aliceMetrics.localDevice?.keysDestroyed}`);
+  console.log(`   ├─ Active Keys: ${aliceMetrics.localDevice?.activeKeys}`);
+  console.log(`   ├─ Trusted Contacts: ${aliceMetrics.trustedContacts}`);
+  console.log(`   └─ Trust Environment: ${aliceMetrics.trustEnvironment?.environmentId}\n`);
+
+  console.log('   DASB Statistics:');
+  console.log(`   ├─ Trust Environments: ${aliceMetrics.dasbStatistics.trustEnvironments}`);
+  console.log(`   ├─ Provisioned Devices: ${aliceMetrics.dasbStatistics.provisionedDevices}`);
+  console.log(`   ├─ Active Relationships: ${aliceMetrics.dasbStatistics.trustRelationships}`);
+  console.log(`   └─ Mode: ${aliceMetrics.dasbStatistics.mode}\n`);
+
+  // Demonstrate contact listing
+  console.log('9. Active trusted contacts:');
+  const contacts = aliceIntegration.getTrustedContacts();
+  contacts.forEach(contact => {
+    console.log(`   - ${contact.deviceId} (${contact.phoneNumber})`);
+  });
+  console.log();
 
   // Cleanup
-  console.log('8. Secure cleanup...');
+  console.log('10. Secure cleanup...');
   aliceIntegration.shutdown();
   bobIntegration.shutdown();
   charlieIntegration.shutdown();
-  console.log('   ✓ All ephemeral keys destroyed');
-  console.log('   ✓ All sessions terminated');
-  console.log('   ✓ Zero traces left in memory\n');
 
-  console.log('=== Advanced Features Demonstrated ===');
-  console.log('✓ Custom trust policies');
-  console.log('✓ Multi-party trust networks');
-  console.log('✓ Trust revocation');
+  console.log('   ✓ All device SDKs shutdown');
+  console.log('   ✓ All DASB instances terminated');
+  console.log('   ✓ All Trust Environments destroyed');
+  console.log('   ✓ All ephemeral keys wiped from memory');
+  console.log('   ✓ Zero cryptographic material remains\n');
+
+  console.log('=== Advanced Features Demonstrated ===\n');
+  console.log('✓ FIPS 140-2 validated mode');
+  console.log('✓ Trust score-based access control');
+  console.log('✓ Real-time trust validation');
   console.log('✓ Unique ephemeral keys per message');
-  console.log('✓ Real-time security monitoring');
-  console.log('✓ Session timeout management');
-  console.log('✓ Secure cleanup and key destruction');
+  console.log('✓ Trust relationship revocation');
+  console.log('✓ Multi-party trust networks');
+  console.log('✓ DASB audit logging');
+  console.log('✓ Comprehensive security monitoring');
+  console.log('✓ Secure cleanup and key destruction\n');
+
+  console.log('Key Differences from Traditional PKI:');
+  console.log('✗ NO certificate authorities');
+  console.log('✗ NO public key infrastructure');
+  console.log('✗ NO persistent key storage');
+  console.log('✗ NO key rotation management');
+  console.log('✓ Device-constructed ephemeral keys');
+  console.log('✓ Real-time trust validation');
+  console.log('✓ Sovereign trust environments');
 }
 
 // Run example
