@@ -1,0 +1,32 @@
+# Podfile for SecureMessenger
+# KnectIQ SelectiveTRUST® + Signal Protocol Integration
+
+platform :ios, '15.0'
+use_frameworks!
+
+target 'SecureMessenger' do
+  # Signal Protocol (E2E Encryption)
+  pod 'LibSignalClient', '~> 0.32.0'
+
+  # Networking
+  pod 'Starscream', '~> 4.0'  # WebSocket client
+  pod 'Alamofire', '~> 5.8'   # HTTP networking
+
+  # Database
+  pod 'GRDB.swift', '~> 6.0'  # SQLite wrapper
+
+  # UI Utilities
+  pod 'SDWebImage', '~> 5.0'  # Image loading
+
+  target 'SecureMessengerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+    end
+  end
+end
