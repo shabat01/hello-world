@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SecureMessenger – KnectIQ SelectiveTRUST® Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f0f1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 40px;
+      flex-wrap: wrap;
+      padding: 40px 20px;
+    }
+
+    /* ── iPhone Shell ── */
+    .iphone {
+      width: 375px;
+      height: 812px;
+      background: #1c1c1e;
+      border-radius: 55px;
+      border: 8px solid #3a3a3c;
+      box-shadow:
+        0 0 0 2px #555,
+        0 40px 80px rgba(0,0,0,.7),
+        inset 0 0 0 2px #2c2c2e;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    /* notch */
+    .iphone::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 150px; height: 30px;
+      background: #1c1c1e;
+      border-radius: 0 0 20px 20px;
+      z-index: 100;
+    }
+
+    .screen {
+      width: 100%; height: 100%;
+      border-radius: 48px;
+      overflow: hidden;
+      position: relative;
+      background: #000;
+    }
+
+    /* ── Status Bar ── */
+    .status-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 44px;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      padding: 0 28px 6px;
+      font-size: 12px; font-weight: 600; color: #fff;
+      z-index: 50;
+    }
+    .status-bar .time { font-size: 15px; font-weight: 700; }
+    .status-bar .icons { display: flex; gap: 6px; align-items: center; }
+
+    /* ── Views ── */
+    .view {
+      position: absolute; inset: 0;
+      opacity: 0;
+      transition: opacity .4s ease;
+      pointer-events: none;
+    }
+    .view.active { opacity: 1; pointer-events: all; }
+
+    /* ── Splash ── */
+    #splash {
+      background: linear-gradient(160deg, #0a0a1a 0%, #1a1a2e 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px;
+    }
+    #splash .logo { font-size: 64px; }
+    #splash h1 { font-size: 26px; font-weight: 700; color: #fff; letter-spacing: -.5px; }
+    #splash p  { font-size: 13px; color: #8e8e93; text-align: center; padding: 0 30px; }
+    #splash .badge {
+      background: rgba(52,199,89,.15);
+      border: 1px solid rgba(52,199,89,.4);
+      color: #34c759; border-radius: 20px;
+      padding: 6px 16px; font-size: 12px; font-weight: 600;
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid rgba(255,255,255,.1);
+      border-top-color: #0a84ff;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Nav Bar ── */
+    .nav-bar {
+      position: absolute; top: 44px; left: 0; right: 0;
+      height: 52px;
+      background: rgba(28,28,30,.92);
+      backdrop-filter: blur(20px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      z-index: 40;
+    }
+    .nav-bar .nav-title { font-size: 17px; font-weight: 600; color: #fff; }
+    .nav-bar .nav-btn   { font-size: 13px; color: #0a84ff; font-weight: 500; cursor: pointer; }
+    .nav-bar .back-btn  { font-size: 13px; color: #0a84ff; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+
+    /* ── Contact List ── */
+    #contacts { background: #000; }
+    .contact-list { position: absolute; top: 96px; left: 0; right: 0; bottom: 80px; overflow-y: auto; }
+    .section-header {
+      padding: 18px 20px 8px;
+      font-size: 13px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .contact-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 20px;
+      background: #1c1c1e;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .contact-row:active, .contact-row:hover { background: #2c2c2e; }
+    .avatar {
+      width: 46px; height: 46px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700; flex-shrink: 0;
+    }
+    .contact-info { flex: 1; }
+    .contact-name  { font-size: 16px; color: #fff; font-weight: 500; }
+    .contact-sub   { font-size: 13px; color: #8e8e93; margin-top: 2px; }
+    .trust-badge {
+      font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
+    }
+    .trust-badge.trusted   { background: rgba(52,199,89,.15); color: #34c759; }
+    .trust-badge.untrusted { background: rgba(255,159,10,.15); color: #ff9f0a; }
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 300px; gap: 12px;
+    }
+    .empty-state .icon { font-size: 52px; }
+    .empty-state p { font-size: 15px; color: #8e8e93; text-align: center; }
+
+    /* security strip */
+    .security-strip {
+      background: rgba(10,132,255,.08);
+      border: 1px solid rgba(10,132,255,.2);
+      margin: 8px 16px; border-radius: 12px;
+      padding: 10px 14px;
+      display: flex; gap: 16px;
+    }
+    .sec-stat { text-align: center; }
+    .sec-stat .val { font-size: 20px; font-weight: 700; color: #0a84ff; }
+    .sec-stat .lbl { font-size: 10px; color: #8e8e93; margin-top: 2px; }
+
+    /* bottom tab bar */
+    .tab-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 80px; background: rgba(28,28,30,.95);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255,255,255,.08);
+      display: flex; align-items: center; justify-content: space-around;
+      padding-bottom: 20px;
+    }
+    .tab { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+    .tab .icon { font-size: 22px; }
+    .tab .label { font-size: 10px; color: #8e8e93; }
+    .tab.active .label { color: #0a84ff; }
+
+    /* ── Conversation ── */
+    #conversation { background: #000; }
+    .conv-header-info { display: flex; align-items: center; gap: 10px; }
+    .conv-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+
+    .messages { position: absolute; top: 96px; left: 0; right: 0; bottom: 120px; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+    .bubble-wrap { display: flex; flex-direction: column; }
+    .bubble-wrap.me { align-items: flex-end; }
+    .bubble-wrap.them { align-items: flex-start; }
+
+    .bubble {
+      max-width: 72%; padding: 10px 14px; border-radius: 18px;
+      font-size: 15px; line-height: 1.4;
+    }
+    .bubble-wrap.me   .bubble { background: #0a84ff; color: #fff; border-bottom-right-radius: 4px; }
+    .bubble-wrap.them .bubble { background: #2c2c2e; color: #fff; border-bottom-left-radius: 4px; }
+    .msg-time { font-size: 11px; color: #8e8e93; margin-top: 3px; padding: 0 4px; }
+
+    /* Encryption indicator */
+    .enc-indicator {
+      align-self: center; font-size: 11px; color: #34c759;
+      background: rgba(52,199,89,.1); border: 1px solid rgba(52,199,89,.25);
+      border-radius: 10px; padding: 3px 10px; margin: 2px 0;
+    }
+
+    .input-bar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 120px; background: rgba(28,28,30,.95);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255,255,255,.08);
+      padding: 12px 16px 30px;
+    }
+    .input-row { display: flex; gap: 10px; align-items: center; }
+    .input-box {
+      flex: 1; background: #2c2c2e; border-radius: 20px;
+      padding: 10px 16px; font-size: 15px; color: #fff;
+      border: none; outline: none; font-family: inherit;
+    }
+    .input-box::placeholder { color: #8e8e93; }
+    .send-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: #0a84ff; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+    .send-btn:disabled { background: #3a3a3c; }
+
+    /* trust bar */
+    .trust-bar {
+      background: rgba(52,199,89,.08);
+      border-bottom: 1px solid rgba(52,199,89,.15);
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 16px; font-size: 12px; color: #34c759;
+    }
+
+    /* ── Encryption Screen ── */
+    #encrypting {
+      background: rgba(0,0,0,.88);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; z-index: 90;
+    }
+    #encrypting .lock { font-size: 56px; animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+    .enc-title { font-size: 18px; font-weight: 600; color: #fff; }
+    .enc-steps { display: flex; flex-direction: column; gap: 10px; width: 80%; }
+    .enc-step {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: #8e8e93;
+    }
+    .enc-step.done { color: #34c759; }
+    .enc-step .dot {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(255,255,255,.1);
+      display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0;
+    }
+    .enc-step.done .dot { background: rgba(52,199,89,.2); color: #34c759; }
+    .key-chip {
+      background: rgba(10,132,255,.12); border: 1px solid rgba(10,132,255,.3);
+      border-radius: 8px; padding: 8px 14px;
+      font-size: 11px; color: #0a84ff; font-family: 'SF Mono', monospace; word-break: break-all;
+    }
+
+    /* ── Add Contact Sheet ── */
+    #add-contact {
+      background: rgba(0,0,0,.6);
+      display: flex; align-items: flex-end; z-index: 80;
+    }
+    .sheet {
+      width: 100%; background: #1c1c1e;
+      border-radius: 16px 16px 0 0;
+      padding: 20px 20px 40px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .sheet-handle { width: 36px; height: 4px; background: #3a3a3c; border-radius: 2px; align-self: center; margin-bottom: 4px; }
+    .sheet h2 { font-size: 17px; font-weight: 600; color: #fff; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; color: #8e8e93; font-weight: 500; text-transform: uppercase; letter-spacing: .4px; }
+    .field .val   { font-size: 15px; color: #fff; background: #2c2c2e; border-radius: 10px; padding: 10px 14px; }
+    .add-btn {
+      background: #0a84ff; color: #fff; border: none; border-radius: 12px;
+      padding: 14px; font-size: 16px; font-weight: 600; cursor: pointer;
+      margin-top: 4px;
+    }
+
+    /* ── Stats Panel ── */
+    #stats-panel {
+      background: #000;
+    }
+    .stats-body { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .card { background: #1c1c1e; border-radius: 14px; padding: 16px; }
+    .card-title { font-size: 13px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row .k { font-size: 14px; color: #aeaeb2; }
+    .stat-row .v { font-size: 14px; color: #fff; font-weight: 500; }
+    .check-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+    .check-row .icon { font-size: 16px; }
+    .check-row .text { font-size: 13px; color: #d1d1d6; }
+
+    /* ── Log Panel ── */
+    #log-panel { background: #000; }
+    .log-body { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; overflow-y: auto; padding: 12px; }
+    .log-entry {
+      background: #1c1c1e; border-radius: 10px; padding: 10px 14px; margin-bottom: 8px;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .log-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .log-content .log-event { font-size: 13px; color: #fff; font-weight: 500; }
+    .log-content .log-time  { font-size: 11px; color: #8e8e93; margin-top: 2px; }
+
+    /* ── Side Info Panel ── */
+    .info-panel {
+      max-width: 340px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .info-panel h2 { font-size: 22px; font-weight: 700; color: #fff; }
+    .info-panel p  { font-size: 14px; color: #8e8e93; line-height: 1.6; }
+    .feature-list  { display: flex; flex-direction: column; gap: 10px; }
+    .feat {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: rgba(255,255,255,.04); border-radius: 12px; padding: 12px;
+    }
+    .feat .ficon { font-size: 22px; flex-shrink: 0; }
+    .feat .ftitle { font-size: 14px; font-weight: 600; color: #fff; }
+    .feat .fdesc  { font-size: 12px; color: #8e8e93; margin-top: 2px; line-height: 1.4; }
+    .step-indicator {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .step-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: rgba(255,255,255,.15); transition: background .3s;
+    }
+    .step-dot.active   { background: #0a84ff; }
+    .step-dot.complete { background: #34c759; }
+    .step-label { font-size: 13px; color: #8e8e93; }
+    .replay-btn {
+      background: rgba(10,132,255,.15); border: 1px solid rgba(10,132,255,.3);
+      color: #0a84ff; border-radius: 12px; padding: 12px 20px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      text-align: center; transition: background .2s;
+    }
+    .replay-btn:hover { background: rgba(10,132,255,.25); }
+
+    .typing-indicator { display: flex; align-items: center; gap: 4px; padding: 10px 14px; }
+    .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: #8e8e93; animation: typing .9s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: .15s; }
+    .typing-dot:nth-child(3) { animation-delay: .3s; }
+    @keyframes typing { 0%,60%,100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+  </style>
+</head>
+<body>
+
+<!-- ──────────── iPhone ──────────── -->
+<div class="iphone">
+  <div class="screen">
+    <div class="status-bar">
+      <span class="time" id="clock">9:41</span>
+      <div class="icons"><span>●●●●</span><span>WiFi</span><span>🔋</span></div>
+    </div>
+
+    <!-- Splash -->
+    <div class="view active" id="splash">
+      <div class="logo">🔒</div>
+      <h1>SecureMessenger</h1>
+      <p>KnectIQ SelectiveTRUST®<br>Ephemeral Trust Environment</p>
+      <div class="badge">✦ Patent Protected Technology</div>
+      <div class="spinner" id="splash-spinner" style="display:none"></div>
+    </div>
+
+    <!-- Contact List -->
+    <div class="view" id="contacts">
+      <div class="nav-bar">
+        <span class="nav-title">SecureMessenger</span>
+        <span class="nav-btn" id="add-btn">+ Add</span>
+      </div>
+      <div class="contact-list">
+        <div class="security-strip" id="sec-strip">
+          <div class="sec-stat"><div class="val" id="keys-made">0</div><div class="lbl">Keys Built</div></div>
+          <div class="sec-stat"><div class="val" id="keys-gone">0</div><div class="lbl">Keys Destroyed</div></div>
+          <div class="sec-stat"><div class="val" id="msgs-sent">0</div><div class="lbl">Msgs Sent</div></div>
+        </div>
+        <div class="section-header">Trusted Contacts</div>
+        <div id="contact-items">
+          <div class="empty-state">
+            <div class="icon">👥</div>
+            <p>No contacts yet</p>
+          </div>
+        </div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab active"><div class="icon">💬</div><div class="label">Chats</div></div>
+        <div class="tab" id="stats-tab"><div class="icon">🛡️</div><div class="label">Security</div></div>
+        <div class="tab" id="log-tab"><div class="icon">📋</div><div class="label">Audit</div></div>
+      </div>
+    </div>
+
+    <!-- Add Contact Sheet -->
+    <div class="view" id="add-contact">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <h2>Add Trusted Contact</h2>
+        <div class="field"><label>User ID</label><div class="val" id="sheet-uid"></div></div>
+        <div class="field"><label>Device ID</label><div class="val" id="sheet-did"></div></div>
+        <div class="field"><label>Phone</label><div class="val" id="sheet-phone"></div></div>
+        <button class="add-btn" id="confirm-add">Establish Trust</button>
+      </div>
+    </div>
+
+    <!-- Conversation -->
+    <div class="view" id="conversation">
+      <div class="nav-bar">
+        <span class="back-btn" id="back-btn">‹ Back</span>
+        <div class="conv-header-info">
+          <div class="conv-avatar" id="conv-avatar" style="background:#5e5ce6">A</div>
+          <span class="nav-title" id="conv-name">Alice</span>
+        </div>
+        <span style="width:40px"></span>
+      </div>
+      <div class="trust-bar">🔒 End-to-end encrypted · SelectiveTRUST® active</div>
+      <div class="messages" id="messages" style="top:118px"></div>
+      <div class="input-bar">
+        <div class="input-row">
+          <input class="input-box" id="msg-input" placeholder="iMessage" readonly />
+          <button class="send-btn" id="send-btn" disabled>↑</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Encrypting Overlay -->
+    <div class="view" id="encrypting">
+      <div class="lock">🔐</div>
+      <div class="enc-title">Encrypting Message</div>
+      <div class="enc-steps" id="enc-steps">
+        <div class="enc-step" id="es1"><div class="dot">1</div>Constructing ephemeral key at device…</div>
+        <div class="enc-step" id="es2"><div class="dot">2</div>Applying Signal Protocol (Layer 1)…</div>
+        <div class="enc-step" id="es3"><div class="dot">3</div>Applying SelectiveTRUST® AES-256-GCM (Layer 2)…</div>
+        <div class="enc-step" id="es4"><div class="dot">4</div>Destroying ephemeral key…</div>
+      </div>
+      <div class="key-chip" id="key-chip"></div>
+    </div>
+
+    <!-- Security Stats -->
+    <div class="view" id="stats-panel">
+      <div class="nav-bar">
+        <span class="back-btn" id="stats-back">‹ Back</span>
+        <span class="nav-title">Security</span>
+        <span style="width:40px"></span>
+      </div>
+      <div class="stats-body">
+        <div class="card">
+          <div class="card-title">Device</div>
+          <div class="stat-row"><span class="k">Device ID</span><span class="v">iphone-15-pro-001</span></div>
+          <div class="stat-row"><span class="k">Mode</span><span class="v">Standard</span></div>
+          <div class="stat-row"><span class="k">FIPS 140-2</span><span class="v">Available</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Ephemeral Keys</div>
+          <div class="stat-row"><span class="k">Constructed</span><span class="v" id="stat-built">0</span></div>
+          <div class="stat-row"><span class="k">Destroyed</span><span class="v" id="stat-dest">0</span></div>
+          <div class="stat-row"><span class="k">Currently Active</span><span class="v" id="stat-active">0</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Security Features</div>
+          <div class="check-row"><span class="icon">✅</span><span class="text">Keys constructed at device (not centrally)</span></div>
+          <div class="check-row"><span class="icon">✅</span><span class="text">Immediate destruction after single use</span></div>
+          <div class="check-row"><span class="icon">✅</span><span class="text">Double encryption (Signal + SelectiveTRUST®)</span></div>
+          <div class="check-row"><span class="icon">✅</span><span class="text">Real-time trust validation</span></div>
+          <div class="check-row"><span class="icon">✅</span><span class="text">Zero persistent key storage</span></div>
+          <div class="check-row"><span class="icon">✅</span><span class="text">FIPS 140-2 compliant (AES-256-GCM)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit Log -->
+    <div class="view" id="log-panel">
+      <div class="nav-bar">
+        <span class="back-btn" id="log-back">‹ Back</span>
+        <span class="nav-title">Audit Log</span>
+        <span style="width:40px"></span>
+      </div>
+      <div class="log-body" id="log-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── Side Panel ──────────── -->
+<div class="info-panel">
+  <div>
+    <h2>SecureMessenger</h2>
+    <p>iOS app powered by KnectIQ's patented <strong style="color:#0a84ff">SelectiveTRUST®</strong> architecture — the same code running on your iPhone.</p>
+  </div>
+
+  <div>
+    <div class="step-label" style="margin-bottom:8px;font-size:12px;color:#8e8e93">DEMO PROGRESS</div>
+    <div class="step-indicator" id="step-dots"></div>
+    <div class="step-label" id="step-label" style="margin-top:8px">Starting…</div>
+  </div>
+
+  <div class="feature-list">
+    <div class="feat">
+      <div class="ficon">⚡</div>
+      <div><div class="ftitle">Ephemeral Keys</div><div class="fdesc">Each message uses a brand-new key constructed right at your device — then immediately destroyed.</div></div>
+    </div>
+    <div class="feat">
+      <div class="ficon">🔐</div>
+      <div><div class="ftitle">Double Encryption</div><div class="fdesc">Signal Protocol (Layer 1) + SelectiveTRUST® AES-256-GCM (Layer 2).</div></div>
+    </div>
+    <div class="feat">
+      <div class="ficon">🛡️</div>
+      <div><div class="ftitle">Real-Time Trust</div><div class="fdesc">DASB validates every conversation. Untrusted contacts can't receive messages.</div></div>
+    </div>
+    <div class="feat">
+      <div class="ficon">🏛️</div>
+      <div><div class="ftitle">FIPS 140-2</div><div class="fdesc">Government-grade encryption compliance. No PKI required.</div></div>
+    </div>
+  </div>
+
+  <div class="replay-btn" id="replay-btn">↺ &nbsp;Replay Demo</div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+let keysMade = 0, keysGone = 0, msgsSent = 0;
+const contacts = [];
+const logEntries = [];
+
+// ── Helpers ────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+function updateClock() {
+  const d = new Date();
+  $('clock').textContent = d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+setInterval(updateClock, 10000);
+updateClock();
+
+function genKeyId() {
+  return 'eph_' + Date.now() + '_' + Math.random().toString(36).slice(2,8).toUpperCase();
+}
+
+function addLog(icon, event) {
+  const now = new Date().toLocaleTimeString();
+  logEntries.push({ icon, event, time: now });
+  const el = document.createElement('div');
+  el.className = 'log-entry';
+  el.innerHTML = `<div class="log-icon">${icon}</div><div class="log-content"><div class="log-event">${event}</div><div class="log-time">${now}</div></div>`;
+  $('log-body').prepend(el);
+}
+
+function updateStats() {
+  $('keys-made').textContent = keysMade;
+  $('keys-gone').textContent = keysGone;
+  $('msgs-sent').textContent  = msgsSent;
+  $('stat-built').textContent = keysMade;
+  $('stat-dest').textContent  = keysGone;
+  $('stat-active').textContent = Math.max(0, keysMade - keysGone);
+}
+
+function renderContacts() {
+  const el = $('contact-items');
+  if (contacts.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">👥</div><p>No contacts yet</p></div>`;
+    return;
+  }
+  el.innerHTML = contacts.map(c => `
+    <div class="contact-row" onclick="openConv('${c.name}','${c.color}')">
+      <div class="avatar" style="background:${c.color}">${c.name[0]}</div>
+      <div class="contact-info">
+        <div class="contact-name">${c.name}</div>
+        <div class="contact-sub">${c.phone} · ${c.device}</div>
+      </div>
+      <div class="trust-badge trusted">✓ Trusted</div>
+    </div>`).join('');
+}
+
+// step dots
+const STEPS = ['Launch','Contacts','Add Alice','Add Bob','Chat','Msg 1','Msg 2','Stats','Log','Done'];
+function buildDots() {
+  const wrap = $('step-dots');
+  wrap.innerHTML = STEPS.map((_,i) => `<div class="step-dot" id="sd${i}"></div>`).join('');
+}
+function setStep(i, label) {
+  STEPS.forEach((_,j) => {
+    const d = $(`sd${j}`);
+    d.className = 'step-dot' + (j < i ? ' complete' : j === i ? ' active' : '');
+  });
+  $('step-label').textContent = label || STEPS[i] || '';
+}
+buildDots();
+
+// ── Navigation ─────────────────────────────────────────────────────
+$('back-btn').onclick = () => { showView('contacts'); renderContacts(); };
+$('stats-back').onclick = () => showView('contacts');
+$('log-back').onclick   = () => showView('contacts');
+$('stats-tab').onclick  = () => showView('stats-panel');
+$('log-tab').onclick    = () => showView('log-panel');
+$('replay-btn').onclick = () => { location.reload(); };
+
+function openConv(name, color) {
+  $('conv-name').textContent = name;
+  $('conv-avatar').textContent = name[0];
+  $('conv-avatar').style.background = color;
+  $('messages').innerHTML = '';
+  showView('conversation');
+}
+
+// ── Encryption animation ────────────────────────────────────────────
+async function animateEncrypt(keyId) {
+  ['es1','es2','es3','es4'].forEach(id => $(id).className = 'enc-step');
+  $('key-chip').textContent = keyId;
+  showView('encrypting');
+  await sleep(700);
+  $('es1').className = 'enc-step done'; $('es1').querySelector('.dot').textContent = '✓';
+  await sleep(600);
+  $('es2').className = 'enc-step done'; $('es2').querySelector('.dot').textContent = '✓';
+  await sleep(600);
+  $('es3').className = 'enc-step done'; $('es3').querySelector('.dot').textContent = '✓';
+  await sleep(600);
+  $('es4').className = 'enc-step done'; $('es4').querySelector('.dot').textContent = '✓';
+  await sleep(500);
+}
+
+function addMessage(text, side) {
+  const wrap = document.createElement('div');
+  wrap.className = 'bubble-wrap ' + side;
+  const time = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  wrap.innerHTML = `<div class="bubble">${text}</div><div class="msg-time">${time}</div>`;
+  $('messages').appendChild(wrap);
+  $('messages').scrollTop = $('messages').scrollHeight;
+}
+
+function addEncLabel(label) {
+  const el = document.createElement('div');
+  el.className = 'enc-indicator';
+  el.textContent = label;
+  $('messages').appendChild(el);
+  $('messages').scrollTop = $('messages').scrollHeight;
+}
+
+function typeIn(text) {
+  return new Promise(async resolve => {
+    const inp = $('msg-input');
+    inp.value = '';
+    for (const ch of text) { inp.value += ch; await sleep(40); }
+    resolve();
+  });
+}
+
+// ── Main Demo Sequence ──────────────────────────────────────────────
+async function runDemo() {
+  setStep(0, 'Launching app…');
+
+  // 1. Splash
+  showView('splash');
+  $('splash-spinner').style.display = '';
+  addLog('🚀','dasb_initialized');
+  addLog('🌐','trust_environment_created');
+  await sleep(2000);
+
+  // 2. Contact list (empty)
+  setStep(1, 'Contact List (empty)');
+  showView('contacts');
+  renderContacts();
+  addLog('📱','device_provisioned — iphone-15-pro-001');
+  await sleep(2200);
+
+  // 3. Add Alice
+  setStep(2, 'Adding Alice…');
+  $('sheet-uid').textContent   = 'alice@signal.org';
+  $('sheet-did').textContent   = 'alice-iphone-001';
+  $('sheet-phone').textContent = '+1-555-5001';
+  showView('add-contact');
+  await sleep(2000);
+  contacts.push({ name:'Alice', phone:'+1-555-5001', device:'alice-iphone-001', color:'#5e5ce6' });
+  addLog('🤝','trust_relationship_established — Alice');
+  addLog('📱','device_provisioned — alice-iphone-001');
+  updateStats();
+  showView('contacts');
+  renderContacts();
+  await sleep(1800);
+
+  // 4. Add Bob
+  setStep(3, 'Adding Bob…');
+  $('sheet-uid').textContent   = 'bob@signal.org';
+  $('sheet-did').textContent   = 'bob-iphone-001';
+  $('sheet-phone').textContent = '+1-555-5002';
+  showView('add-contact');
+  await sleep(2000);
+  contacts.push({ name:'Bob', phone:'+1-555-5002', device:'bob-iphone-001', color:'#ff9f0a' });
+  addLog('🤝','trust_relationship_established — Bob');
+  addLog('📱','device_provisioned — bob-iphone-001');
+  updateStats();
+  showView('contacts');
+  renderContacts();
+  await sleep(2000);
+
+  // 5. Open chat with Alice
+  setStep(4, 'Opening chat with Alice…');
+  openConv('Alice', '#5e5ce6');
+  await sleep(1500);
+
+  // 6. Send Message 1
+  setStep(5, 'Sending Message 1…');
+  $('msg-input').value = '';
+  $('send-btn').disabled = false;
+  await typeIn('Hey Alice! Testing SelectiveTRUST®');
+  await sleep(600);
+
+  const key1 = genKeyId();
+  keysMade++;
+  updateStats();
+  showView('conversation');
+  await animateEncrypt(key1);
+  keysGone++;
+  msgsSent++;
+  updateStats();
+
+  showView('conversation');
+  addEncLabel('🔐 Double encrypted · ephemeral key destroyed');
+  addMessage('Hey Alice! Testing SelectiveTRUST®', 'me');
+  addLog('🔑',`key_constructed — ${key1.slice(0,28)}…`);
+  addLog('✉️','message_encrypted — Layer 1 + Layer 2');
+  addLog('🗑️',`key_destroyed — ${key1.slice(0,28)}…`);
+  $('msg-input').value = '';
+  $('send-btn').disabled = true;
+  await sleep(2500);
+
+  // 7. Send Message 2
+  setStep(6, 'Sending Message 2…');
+  $('send-btn').disabled = false;
+  await typeIn('Each message gets a unique ephemeral key!');
+  await sleep(600);
+
+  const key2 = genKeyId();
+  keysMade++;
+  updateStats();
+  await animateEncrypt(key2);
+  keysGone++;
+  msgsSent++;
+  updateStats();
+
+  showView('conversation');
+  addEncLabel('🔐 New unique key · immediately destroyed');
+  addMessage('Each message gets a unique ephemeral key!', 'me');
+  addLog('🔑',`key_constructed — ${key2.slice(0,28)}…`);
+  addLog('✉️','message_encrypted — Layer 1 + Layer 2');
+  addLog('🗑️',`key_destroyed — ${key2.slice(0,28)}…`);
+  $('msg-input').value = '';
+  $('send-btn').disabled = true;
+  await sleep(1500);
+
+  // typing indicator then incoming message
+  const typing = document.createElement('div');
+  typing.className = 'bubble-wrap them';
+  typing.id = 'typing-ind';
+  typing.innerHTML = `<div class="bubble" style="padding:8px 14px"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  $('messages').appendChild(typing);
+  $('messages').scrollTop = $('messages').scrollHeight;
+  await sleep(1800);
+  $('messages').removeChild(typing);
+  addEncLabel('🔐 Received · trust validated ✓');
+  addMessage("Amazing! Our keys truly never persist 🔒", 'them');
+  await sleep(2000);
+
+  // 8. Stats
+  setStep(7, 'Viewing Security Stats');
+  showView('stats-panel');
+  await sleep(3000);
+
+  // 9. Audit Log
+  setStep(8, 'Audit Log');
+  showView('log-panel');
+  await sleep(3000);
+
+  // 10. Done
+  setStep(9, '✅ Demo complete!');
+  showView('contacts');
+  renderContacts();
+  addLog('🏁','demo_complete — all keys destroyed, zero material remains');
+}
+
+runDemo();
+</script>
+</body>
+</html>
